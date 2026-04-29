@@ -8,16 +8,15 @@ import matplotlib.pyplot as plt
 CoffB = inputs.CoffB
 B_tesla = inputs.B_tesla
 nkx = inputs.nkx
-BZsize = inputs.BZsize
-Emax = inputs.Emax
-kmax = inputs.kmax
+Ecomp = inputs.Ecomp
+eta = inputs.eta
 del inputs
 
 B = B_tesla * CoffB
 
 # Symmetric directions
 kvx_range = np.arange(0.5 - nkx, nkx + 0.5, 1)
-kvx = np.pi * kvx_range * BZsize / nkx
+kvx = np.pi * kvx_range / nkx
 nkx = len(kvx)
 
 # Load Hamiltonian data
@@ -48,9 +47,9 @@ val12 = matH12[:, 0] * np.exp(1j * (matH12[:, 1] * B))
 # Create Sparse Matrices
 H11 = csr_matrix((val11, (iH11, jH11)))
 H12 = csr_matrix((val12, (iH12, jH12)))
+M = H11.shape[0]
 
-Eb = []
-KP = []
+LDOS = 0
 
 # Main Loop
 for k in range(nkx):
@@ -62,27 +61,15 @@ for k in range(nkx):
     # Convert to dense for eigendecomposition
     H_total = (Hk_sparse + Hk_sparse.getH() + H11).toarray()
 
-    # Eigenvalues (eigh is optimized for Hermitian/Symmetric matrices)
-    evals = np.linalg.eigh(H_total)[0]
-    Hk_res = np.real(evals * t0)
+    # Compute the Green's function
+    GF = np.linalg.inv((Ecomp + 1j * eta) * np.eye(M) - H_total)
 
-    # Store results
-    KP.append((k + 1 - 0.5) / nkx - 0.5)
-    Eb.append(Hk_res)
+    # Compute LDOS
+    LDOS = LDOS - np.diag(GF.imag)
 
 # Convert to arrays for saving/plotting
-KP = np.array(KP)
-Eb = np.array(Eb)
-Eb = Eb.squeeze()
-KP = KP.reshape(-1, 1)
 
 # Save results
-savemat('Bands.mat', {'KP': KP, 'Eb': Eb})
-
-plt.figure(figsize=(10, 8))
-plt.plot(KP, Eb)
-plt.xlim(-kmax, kmax)
-plt.ylim(-Emax, Emax)
-plt.grid(True)
-plt.show()
+LDOS = LDOS.T
+savemat('LDOSdata.mat', {'Ene': Ecomp, 'B': B_tesla, 'LDOS': LDOS})
 
